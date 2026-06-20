@@ -1,0 +1,49 @@
+# Render Blueprint — KaneCLI TestPilot
+# Two services: a Dockerized FastAPI API and a Next.js web frontend.
+# Apply via Render → New → Blueprint, pointed at this repo. You'll be prompted
+# for the values marked `sync: false` (your secrets + the cross-service URLs).
+services:
+  # ── API (FastAPI + kane-cli, cloud-grid mode) ─────────────────────────────
+  - type: web
+    name: kane-testpilot-api
+    runtime: docker
+    plan: starter            # always-on; runs hold in-memory state + WebSockets
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: KANE_CLOUD       # browser runs on LambdaTest grid — no Chrome here
+        value: "true"
+      - key: DEMO_MODE
+        value: "false"
+      - key: TEST_STYLE
+        value: as_is
+      - key: KANE_CONCURRENCY # no CDP-port ceiling in cloud mode; cap = LT plan
+        value: "8"
+      - key: WORKSPACE_DIR
+        value: /tmp/workspaces
+      - key: FRONTEND_ORIGIN  # https URL of the web service (for CORS)
+        sync: false
+      - key: GITHUB_TOKEN     # PAT with `repo` + `workflow` scope
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: LT_USERNAME
+        sync: false
+      - key: LT_ACCESS_KEY
+        sync: false
+
+  # ── Web (Next.js) ─────────────────────────────────────────────────────────
+  - type: web
+    name: kane-testpilot-web
+    runtime: node
+    plan: starter            # can be `free` (stateless) — it'll cold-start on idle
+    buildCommand: cd frontend && npm ci && npm run build
+    startCommand: cd frontend && npm start -- -p $PORT
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NEXT_PUBLIC_API  # https URL of the API service, baked in at build
+        sync: false

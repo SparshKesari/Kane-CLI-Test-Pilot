@@ -1,0 +1,13 @@
+# The API image only needs the backend.
+frontend
+.git
+**/node_modules
+**/.next
+**/__pycache__
+**/*.pyc
+**/.venv
+**/.workspaces
+**/.testmu
+**/.testmuai
+**/.env
+**/.env.local
