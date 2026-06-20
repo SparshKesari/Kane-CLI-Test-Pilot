@@ -41,7 +41,7 @@ services:
     name: kane-testpilot-web
     runtime: node
     plan: free               # $0; stateless — only downside is a cold start on idle
-    buildCommand: cd frontend && npm ci && npm run build
+    buildCommand: cd frontend && npm install --no-audit --no-fund && npm run build
     startCommand: cd frontend && npm start -- -p $PORT
     autoDeploy: true
     envVars:
