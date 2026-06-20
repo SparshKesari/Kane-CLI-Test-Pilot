@@ -21,8 +21,8 @@ services:
         value: "false"
       - key: TEST_STYLE
         value: as_is
-      - key: KANE_CONCURRENCY # no CDP-port ceiling in cloud mode; cap = LT plan
-        value: "8"
+      - key: KANE_CONCURRENCY # free tier = 512MB RAM; each kane-cli is a node
+        value: "2"            # process, so keep this low. Raise on a bigger plan.
       - key: WORKSPACE_DIR
         value: /tmp/workspaces
       - key: FRONTEND_ORIGIN  # https URL of the web service (for CORS)
