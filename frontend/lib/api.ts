@@ -12,6 +12,7 @@ export interface TestArtifact {
   scenario_id: string; title: string; framework: string; code: string;
   status: string; authentic: boolean; repair_iterations: number;
   kane_session: string; reason: string;
+  kane_test_url?: string;   // LambdaTest session URL (cloud-grid runs only)
 }
 export interface Metrics {
   note?: string;
