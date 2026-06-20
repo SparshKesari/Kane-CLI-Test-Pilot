@@ -7,7 +7,9 @@ services:
   - type: web
     name: kane-testpilot-api
     runtime: docker
-    plan: starter            # always-on; runs hold in-memory state + WebSockets
+    plan: free               # $0; NOTE: spins down when idle → in-memory run
+                             # history is wiped and a long run can be killed.
+                             # Bump to `starter` if that matters.
     dockerfilePath: ./backend/Dockerfile
     dockerContext: .
     healthCheckPath: /api/health
@@ -38,7 +40,7 @@ services:
   - type: web
     name: kane-testpilot-web
     runtime: node
-    plan: starter            # can be `free` (stateless) — it'll cold-start on idle
+    plan: free               # $0; stateless — only downside is a cold start on idle
     buildCommand: cd frontend && npm ci && npm run build
     startCommand: cd frontend && npm start -- -p $PORT
     autoDeploy: true

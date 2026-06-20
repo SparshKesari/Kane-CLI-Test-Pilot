@@ -55,12 +55,14 @@ export function MetricsPanel({ m }: { m: Metrics }) {
       {m.feature_coverage && m.feature_coverage.length > 0 && (
         <div>
           <div className="text-sm mb-2">By feature</div>
-          <div className="space-y-1">
+          <div className="space-y-2.5">
             {m.feature_coverage.map((f) => (
-              <div key={f.feature} className="flex items-center gap-2 text-sm">
-                <span className="w-28 truncate text-muted">{f.feature}</span>
+              <div key={f.feature}>
+                <div className="flex items-center justify-between gap-2 text-xs mb-1">
+                  <span className="truncate text-muted" title={f.feature}>{f.feature}</span>
+                  <span className="shrink-0 text-muted tabular-nums">{f.verified}/{f.proposed}</span>
+                </div>
                 <Bar pct={f.proposed ? (100 * f.verified) / f.proposed : 0} />
-                <span className="text-xs text-muted w-10 text-right">{f.verified}/{f.proposed}</span>
               </div>
             ))}
           </div>

@@ -23,14 +23,22 @@ function fmt(sec: number): string {
 
 export function StatusPanel({ run, phases, events }: { run: Run; phases: Phase[]; events: Ev[] }) {
   const [now, setNow] = useState(() => Date.now() / 1000);
-  const terminal = ["passed", "failed", "error"].includes(run.status);
+  const terminal = ["passed", "failed", "error", "aborted"].includes(run.status);
   useEffect(() => {
     if (terminal) return;
     const t = setInterval(() => setNow(Date.now() / 1000), 1000);
     return () => clearInterval(t);
   }, [terminal]);
 
-  const elapsed = Math.max(0, Math.round(now - (run.created_at || now)));
+  // While running, tick wall-clock. Once finished, FREEZE at the true run
+  // duration (from metrics or the last phase end) — otherwise reopening an old
+  // run shows time-since-created (e.g. 313m), not how long it actually ran.
+  const lastEnded = phases.reduce((mx, p) => (p.ended_at && p.ended_at > mx ? p.ended_at : mx), 0);
+  const frozen = run.metrics?.total_duration_s
+    ?? (lastEnded ? lastEnded - (run.created_at || lastEnded) : null);
+  const elapsed = Math.max(0, Math.round(
+    terminal && frozen != null ? frozen : now - (run.created_at || now)
+  ));
   const doneCount = phases.filter((p) => p.state === "done").length;
   const totalPhases = phases.length;
   const current = phases.find((p) => p.state === "running");

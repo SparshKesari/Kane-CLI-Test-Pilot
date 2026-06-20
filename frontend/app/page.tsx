@@ -1,34 +1,37 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Run, createRun, listRuns, abortAllRuns } from "@/lib/api";
-import { listLocal, RunMeta } from "@/lib/store";
-import { Badge } from "@/components/Badge";
+import { createRun } from "@/lib/api";
+// Run history — commented out for now (restore alongside the section below):
+// import { useEffect } from "react";
+// import { Run, listRuns, abortAllRuns } from "@/lib/api";
+// import { listLocal, RunMeta } from "@/lib/store";
+// import { Badge } from "@/components/Badge";
 
 export default function Home() {
   const router = useRouter();
   const [repo, setRepo] = useState("");
   const [url, setUrl] = useState("");
   const [mode, setMode] = useState<"auto" | "human">("auto");
-  const [runs, setRuns] = useState<Run[]>([]);
-  const [local, setLocal] = useState<RunMeta[]>([]);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    setLocal(listLocal());
-    listRuns().then(setRuns).catch(() => {});
-  }, []);
-
-  // Merge server (fresh) + locally-saved (survives restarts), de-duped by id.
-  const recent = (() => {
-    const byId = new Map<string, RunMeta>();
-    for (const m of local) byId.set(m.id, m);
-    for (const r of runs) byId.set(r.id, {
-      id: r.id, repo_url: r.repo_url, status: r.status,
-      verdict: r.verdict, created_at: r.created_at, pr_url: r.pr_url,
-    });
-    return [...byId.values()].sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0));
-  })();
+  // Run history — commented out for now (restore alongside the section below):
+  // const [runs, setRuns] = useState<Run[]>([]);
+  // const [local, setLocal] = useState<RunMeta[]>([]);
+  // useEffect(() => {
+  //   setLocal(listLocal());
+  //   listRuns().then(setRuns).catch(() => {});
+  // }, []);
+  // // Merge server (fresh) + locally-saved (survives restarts), de-duped by id.
+  // const recent = (() => {
+  //   const byId = new Map<string, RunMeta>();
+  //   for (const m of local) byId.set(m.id, m);
+  //   for (const r of runs) byId.set(r.id, {
+  //     id: r.id, repo_url: r.repo_url, status: r.status,
+  //     verdict: r.verdict, created_at: r.created_at, pr_url: r.pr_url,
+  //   });
+  //   return [...byId.values()].sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0));
+  // })();
 
   async function start() {
     if (!repo.trim() || !url.trim()) return;
@@ -92,6 +95,8 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Run history — hidden for now (free tier loses server state on idle).
+          To restore, uncomment this section.
       <section className="max-w-2xl mx-auto">
         <div className="flex items-center mb-3">
           <h2 className="font-serif text-lg">Recent runs</h2>
@@ -121,6 +126,7 @@ export default function Home() {
           ))}
         </ul>
       </section>
+      */}
     </div>
   );
 }
