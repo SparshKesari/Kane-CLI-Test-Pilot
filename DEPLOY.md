@@ -1,57 +1,73 @@
-# Deploying KaneCLI TestPilot to Render
+# Deploying KaneCLI TestPilot
 
-Two services, defined in [`render.yaml`](./render.yaml):
+## Architecture: the pipeline runs in GitHub Actions
 
-| Service | Type | What it runs |
+The heavy work (clone → propose → verify with Kane → commit → PR) runs in a
+**GitHub Actions job** (`.github/workflows/pipeline.yml`), which has 7GB RAM and
+free unlimited minutes on a public repo. The hosted services are thin:
+
+| Service | Role | Hosting |
 |---|---|---|
-| `kane-testpilot-api` | Docker | FastAPI + `kane-cli` in **cloud-grid mode** (browser runs on LambdaTest — no Chrome in the container) |
-| `kane-testpilot-web` | Node | The Next.js frontend |
+| `kane-testpilot-api` (Docker, Python) | **Dispatches** a CI job per run and **relays** its events to the browser. Tiny RAM. | Render **free** |
+| `kane-testpilot-web` (Next.js) | The UI | Render **free** |
+| GitHub Actions job | Runs the actual P1–P8 pipeline; streams events back to the API | GitHub (free) |
 
-## 1. Push the deploy files
-
-`render.yaml`, `backend/Dockerfile`, and `.dockerignore` must be on GitHub:
-
-```bash
-git add render.yaml backend/Dockerfile .dockerignore backend/app/main.py DEPLOY.md
-git commit -m "chore: add Render deployment (cloud-grid kane)"
-git push
+```
+Browser ──WS──> API ──workflow_dispatch──> GitHub Actions job (7GB, free)
+   ▲             ▲                                  │
+   └── live ─────┴──── POST /ingest (events+snapshot) ┘
+                       GET  /control (selection/abort)
 ```
 
-## 2. Create the services
+## 1. Add GitHub Actions secrets
+Repo → **Settings → Secrets and variables → Actions → New repository secret**:
 
-Render → **New** → **Blueprint** → pick `SparshKesari/Kane-CLI-Test-Pilot`.
-Render reads `render.yaml` and creates both services. You'll be prompted for the
-values marked `sync: false`:
+| Secret | Value |
+|---|---|
+| `TESTPILOT_GH_TOKEN` | GitHub PAT with `repo` + `workflow` scope (fork/clone/push/PR) |
+| `ANTHROPIC_API_KEY` | Anthropic key |
+| `LT_USERNAME` | LambdaTest username |
+| `LT_ACCESS_KEY` | LambdaTest access key |
+| `INGEST_SECRET` | any long random string — **must match** the API's `INGEST_SECRET` |
 
-**API (`kane-testpilot-api`)**
-- `GITHUB_TOKEN` — a **Personal Access Token** with `repo` + `workflow` scope.
-  (The container has no `gh login`, so it authenticates entirely via this token.)
-- `ANTHROPIC_API_KEY`, `LT_USERNAME`, `LT_ACCESS_KEY` — your keys.
-- `FRONTEND_ORIGIN` — the web URL, e.g. `https://kane-testpilot-web.onrender.com`.
+> `pipeline.yml` must be on the **default branch** (`main`) for `workflow_dispatch`
+> to be callable. Merge this branch (or push the workflow to `main`) before runs work.
 
-**Web (`kane-testpilot-web`)**
-- `NEXT_PUBLIC_API` — the API URL, e.g. `https://kane-testpilot-api.onrender.com`.
-  (Baked in at build time; the WebSocket URL is derived from it automatically.)
+## 2. Deploy on Render (Blueprint)
+Render → **New → Blueprint** → pick the repo. It reads `render.yaml` and creates
+both services (both **free**). Fill the prompted `sync: false` values:
 
-> The two URLs reference each other. Render assigns
-> `https://<service-name>.onrender.com` when the name is free. If a name was taken
-> and Render added a suffix, copy the **actual** URLs from the dashboard, update
-> `NEXT_PUBLIC_API` / `FRONTEND_ORIGIN`, then **Manual Deploy → Clear build cache
-> & deploy** the web service (so the new API URL is re-baked).
+**`kane-testpilot-api`**
+| Key | Value |
+|---|---|
+| `GITHUB_TOKEN` | a PAT with `actions:write` + `workflow` (to dispatch the job) |
+| `INGEST_SECRET` | the **same** random string as the GitHub secret above |
+| `PUBLIC_BASE_URL` | this API's own URL, e.g. `https://kane-testpilot-api.onrender.com` |
+| `FRONTEND_ORIGIN` | the web URL, e.g. `https://kane-testpilot-web.onrender.com` |
+
+(`RUNNER_REPO`, `RUNNER_REF`, `LOCAL_EXECUTION=false`, `DEMO_MODE=false` are preset in `render.yaml`.)
+
+**`kane-testpilot-web`**
+| Key | Value |
+|---|---|
+| `NEXT_PUBLIC_API` | the API URL, e.g. `https://kane-testpilot-api.onrender.com` |
+
+> If Render appends a suffix to a service name, copy the real URLs from the
+> dashboard, update `PUBLIC_BASE_URL` / `FRONTEND_ORIGIN` / `NEXT_PUBLIC_API`,
+> and redeploy the **web** service with **Clear build cache** (NEXT_PUBLIC_* is
+> baked at build time).
 
 ## 3. Verify
-
-- API health: `https://<api>.onrender.com/api/health` → `{"ok": true, "demo_mode": false}`
-- Open the web URL, start a run against a known-good public app, watch the live loop.
+1. API health: `https://<api>.onrender.com/api/health` → `{"ok":true,"demo_mode":false,"local_execution":false}`
+2. Open the web URL, start a run.
+3. Watch it: the API dispatches the workflow (see the run under the repo's
+   **Actions** tab) and the UI streams events live as the job reports back.
 
 ## Notes
-- **Cloud-grid validation:** most local testing was headless-local. Confirm one
-  real run verifies on the grid (returns an LT session URL). If `--agent` +
-  `--ws-endpoint` misbehaves, that's the thing to debug first.
-- **Concurrency:** the local ~8 CDP-port ceiling is gone; the real cap is your
-  LambdaTest parallel-session plan. Tune `KANE_CONCURRENCY` to match.
-- **Access:** there's no login. BYOC isn't wired up, so the API runs on the keys
-  you set above — anyone with the URL spends them. Add HTTP Basic Auth at the
-  edge or keep the URL private if that matters.
-- **State** is in-memory; a redeploy/restart clears run history (PRs already
-  opened are unaffected).
+- **Free tier is fine now** — the API only relays, so 512MB is plenty. The
+  *compute* lives in CI (7GB). Cold starts only add a one-time wake delay; the
+  CI job retries its callbacks so no events are lost.
+- **Local dev** still runs in-process: set `LOCAL_EXECUTION=true` in `backend/.env`
+  (the default) and run backend + frontend as in the README.
+- **State** is in-memory snapshots; an API restart drops history, but the CI job
+  keeps running and still opens the PR.

@@ -1,0 +1,57 @@
+name: TestPilot pipeline
+
+# Triggered by the API (workflow_dispatch) for each run. Runs the full P1-P8
+# pipeline with real resources and streams progress back to the API.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:        { description: "Run id from the API", required: true }
+      repo_url:      { description: "Target GitHub repo", required: true }
+      target_url:    { description: "Live app URL Kane drives", required: false, default: "" }
+      mode:          { description: "auto | human", required: false, default: "auto" }
+      max_scenarios: { description: "0 = auto budget", required: false, default: "0" }
+      callback_url:  { description: "API base URL for event/control callbacks", required: true }
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install kane-cli
+        run: npm install -g @testmuai/kane-cli playwright
+
+      - name: Install backend deps
+        run: pip install -r backend/requirements.txt
+
+      - name: Run pipeline
+        working-directory: backend
+        env:
+          # Browser runs on the LambdaTest grid — no Chrome needed in CI.
+          KANE_CLOUD: "true"
+          DEMO_MODE: "false"
+          LOCAL_EXECUTION: "true"            # this process IS the runner
+          KANE_CONCURRENCY: "4"
+          # Secrets (configure in repo → Settings → Secrets → Actions):
+          GITHUB_TOKEN: ${{ secrets.TESTPILOT_GH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          LT_USERNAME: ${{ secrets.LT_USERNAME }}
+          LT_ACCESS_KEY: ${{ secrets.LT_ACCESS_KEY }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+        run: |
+          python -m app.ci_runner \
+            --run-id "${{ inputs.run_id }}" \
+            --repo-url "${{ inputs.repo_url }}" \
+            --target-url "${{ inputs.target_url }}" \
+            --mode "${{ inputs.mode }}" \
+            --max-scenarios "${{ inputs.max_scenarios }}" \
+            --callback-url "${{ inputs.callback_url }}"
