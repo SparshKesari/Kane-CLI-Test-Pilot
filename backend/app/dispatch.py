@@ -15,9 +15,15 @@ from .models import Run
 
 async def dispatch_pipeline(run: Run) -> None:
     s = get_settings()
-    if not (s.runner_repo and s.github_token and s.public_base_url):
+    missing = [name for name, val in (
+        ("RUNNER_REPO", s.runner_repo),
+        ("GITHUB_TOKEN", s.github_token),
+        ("PUBLIC_BASE_URL", s.public_base_url),
+    ) if not val]
+    if missing:
         raise RuntimeError(
-            "CI dispatch needs RUNNER_REPO, GITHUB_TOKEN and PUBLIC_BASE_URL set.")
+            "CI dispatch is missing required env var(s): " + ", ".join(missing)
+            + ". Set them on the API service and redeploy.")
 
     url = (f"https://api.github.com/repos/{s.runner_repo}"
            f"/actions/workflows/{s.runner_workflow}/dispatches")
