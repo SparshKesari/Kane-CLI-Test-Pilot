@@ -39,6 +39,16 @@ Hard rules:
   title, objective, expected, feature, scenario_type (HAPPY|NEGATIVE|EDGE),
   criticality (HIGH|MEDIUM|LOW), rationale. No prose, no markdown fences."""
 
+_AUTH_DATA_RULE = """
+- AUTH & TEST DATA: the runner supplies throwaway test data you can reference in
+  objectives with the {{var}} syntax — {{email}}, {{password}}, {{name}}, {{url}}.
+  When a flow needs input, USE these (e.g. "type {{url}} into the URL field",
+  "enter email {{email}} and password {{password}}"). For ANY flow that requires
+  being signed in (settings, account, admin, profile, protected pages, or
+  creating/saving data tied to a user), make the objective SELF-CONTAINED: begin by
+  signing up OR logging in with {{email}}/{{password}}, THEN do and verify the
+  action. Never propose a logged-in action without first establishing the session."""
+
 _GREENFIELD_GOAL = """MODE: GREENFIELD — this project has little or no automated UI
 coverage. GOAL: broad, comprehensive coverage. For EVERY major feature you can reach,
 propose at least one HAPPY-path scenario. For HIGH-criticality features (authentication,
@@ -119,7 +129,9 @@ def _llm(profile, existing, crawl, target_url, budget, mode, covered, code_map=N
         # Scale headroom to the budget (~300 output tokens/scenario) so a large
         # ask (full-fledged greenfield ~20) isn't truncated mid-JSON → empty parse.
         max_tokens=min(16000, 1500 + budget * 350),
-        system=[{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
+        system=[{"type": "text",
+                  "text": SYSTEM + (_AUTH_DATA_RULE if s.test_data_enabled else ""),
+                  "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content":
                    f"{goal}\n\nPropose up to {budget} new scenarios as strict JSON.\n\n{user}"}],
     )

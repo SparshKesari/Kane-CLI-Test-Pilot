@@ -359,7 +359,8 @@ def _write_suite_readme(out_dir, run: Run, want_vanilla: bool) -> None:
 # P6 semaphore); `art` is pre-created so run.tests order stays deterministic.
 # --------------------------------------------------------------------------- #
 async def _verify_scenario(run: Run, sc: dict, art: TestArtifact, out_dir,
-                           local, want_vanilla: bool) -> None:
+                           local, want_vanilla: bool,
+                           test_vars: dict | None = None, test_ctx: str = "") -> None:
     import shutil
     from pathlib import Path
     from .services import agent_service, executor, gate_service, kane_service
@@ -382,7 +383,8 @@ async def _verify_scenario(run: Run, sc: dict, art: TestArtifact, out_dir,
         attempts = max(1, settings.kane_attempts)
         for attempt in range(1, attempts + 1):
             kr = await asyncio.to_thread(
-                kane_service.verify, sc["objective"], run.target_url, name, local, abort_key)
+                kane_service.verify, sc["objective"], run.target_url, name, local, abort_key,
+                test_vars or {}, test_ctx)
             if kr.ok or attempt == attempts or aborted():
                 break
             await _emit(run, "loop", scenario=sc["id"], iteration=attempt, step="kane_verify",
@@ -575,6 +577,20 @@ async def _run_live(run: Run) -> None:
     await _start_phase(run, "P6", "Agent ⇄ Kane loop…")
     out_dir = local / "tests" / "e2e"
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Generate run-unique throwaway test data ONCE (so every scenario shares the
+    # same identity), then hand it to Kane as variables + a context file so it can
+    # fill forms and get past sign-in walls instead of dead-ending at auth.
+    test_vars: dict = {}
+    test_ctx = ""
+    if settings.test_data_enabled:
+        data = await asyncio.to_thread(
+            agent_service.generate_test_data, prof, crawl, run.target_url)
+        test_vars = kane_service.build_variables(data)
+        test_ctx = kane_service.build_context(data)
+        await _emit(run, "log", phase="P6",
+                    message=f"Test identity ready ({data.get('email','')}) — "
+                            "Kane will sign in / fill forms with it where needed")
     # Pre-create artifacts in scenario order so the committed suite + PR list are
     # deterministic even though the Kane verifications run concurrently. Each
     # scenario is one live Kane run; a bounded semaphore caps how many hit the
@@ -588,7 +604,8 @@ async def _run_live(run: Run) -> None:
     async def _guarded(sc: dict, art: TestArtifact):
         nonlocal done
         async with sem:
-            await _verify_scenario(run, sc, art, out_dir, local, want_vanilla)
+            await _verify_scenario(run, sc, art, out_dir, local, want_vanilla,
+                                   test_vars, test_ctx)
         done += 1
         p = run.phase("P6")
         p.detail = f"{done}/{total} scenarios verified · {sum(t.authentic for t in run.tests)} passed"

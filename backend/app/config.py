@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     # (slower, and a flaky single replay can drop an otherwise-good test).
     determinism_runs: int = 0
 
+    # Throwaway test data is GENERATED per run by the LLM (run-unique email, strong
+    # password, app-appropriate name/url — see agent_service.generate_test_data),
+    # then handed to Kane as {{email}}/{{password}}/{{name}}/{{url}} variables plus a
+    # context file telling it to sign up / log in when a page needs auth. Nothing is
+    # hardcoded. Set false to skip test-data injection entirely.
+    test_data_enabled: bool = True
+
     # Run Kane on the LambdaTest cloud grid (ws-endpoint + LT:Options) instead of
     # local headless. Needs LT creds; gives video/console/network + a session URL
     # on the dashboard — the evidence needed to debug a Kane failure.

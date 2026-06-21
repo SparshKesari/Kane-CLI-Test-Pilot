@@ -1,14 +1,53 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 import urllib.parse
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..config import get_settings
+
+
+def build_variables(data: dict) -> dict:
+    """Kane --variables payload ({{key}} → value) from a generated test-data dict.
+    Empty dict → no variables passed."""
+    if not data:
+        return {}
+    return {
+        "email":    {"value": data.get("email", ""),    "secret": False},
+        "password": {"value": data.get("password", ""), "secret": True},
+        "name":     {"value": data.get("name", ""),     "secret": False},
+        "url":      {"value": data.get("url", ""),       "secret": False},
+    }
+
+
+def build_context(data: dict) -> str:
+    """Agent --local-context markdown from a generated test-data dict — tells the
+    agent how to use the data and, crucially, how to get PAST a sign-in wall."""
+    if not data:
+        return ""
+    return (
+        "# Automated QA test context\n\n"
+        "You are testing this app with disposable QA test data generated for this "
+        "run. Use it freely; never use real personal data.\n\n"
+        "## Test data (also available as variables: {{email}}, {{password}}, {{name}}, {{url}})\n"
+        f"- Email: {data.get('email', '')}\n"
+        f"- Password: {data.get('password', '')}\n"
+        f"- Name / username: {data.get('name', '')}\n"
+        f"- A URL for any URL/link field: {data.get('url', '')}\n\n"
+        "## Getting past a sign-in wall\n"
+        "If an action or page requires being signed in:\n"
+        "1. If a sign-up / register option exists, create an account with the email "
+        "and password above (and the name if asked), then continue the task.\n"
+        "2. Otherwise log in with the email and password above.\n"
+        "Treat this data as valid; fill required fields with realistic values "
+        "instead of leaving them blank.\n"
+    )
 
 KANE_SESSIONS_DIR = Path.home() / ".testmuai" / "kaneai" / "sessions"
 _UUID_RE = re.compile(
@@ -145,11 +184,16 @@ def abort_run(run_id: str) -> int:
 
 
 def verify(objective: str, target_url: str, name: str, cwd: Path,
-           abort_key: str | None = None) -> KaneResult:
+           abort_key: str | None = None,
+           variables: dict | None = None, context: str | None = None) -> KaneResult:
     """Drive the live app with Kane to prove the behavior is real, and capture
     the replayable test + exported code. Runs headless locally by default, or on
     the LambdaTest cloud grid when KANE_CLOUD=true and creds are set. Registered
-    under `abort_key` so it can be killed mid-run via abort()."""
+    under `abort_key` so it can be killed mid-run via abort().
+
+    `variables` ({{key}} → value, kane --variables) and `context` (markdown agent
+    instructions, kane --local-context) let the agent fill forms and get past
+    sign-in walls with throwaway test data."""
     s = get_settings()
     # kane-cli --name accepts only [A-Za-z0-9_-]; sanitize so a spaced/odd name
     # can never make the whole run fail with "invalid name".
@@ -158,6 +202,14 @@ def verify(objective: str, target_url: str, name: str, cwd: Path,
            "--agent", "--headless", "--timeout", "120", "--max-steps", "15",
            "--code-export", "--code-language", "python", "--skip-code-validation",
            "--name", name, *auth_flags()]
+    if variables:
+        cmd += ["--variables", json.dumps(variables)]
+    ctx_path = ""
+    if context:
+        fd, ctx_path = tempfile.mkstemp(suffix=".md", prefix="kane-ctx-")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(context)
+        cmd += ["--local-context", ctx_path]
     if s.kane_cloud and s.lt_username and s.lt_access_key:
         cmd += ["--ws-endpoint",
                 _cloud_ws_endpoint(s.lt_username, s.lt_access_key, name)]
@@ -177,6 +229,9 @@ def verify(objective: str, target_url: str, name: str, cwd: Path,
     finally:
         if abort_key:
             _RUNNING.pop(abort_key, None)
+        if ctx_path:
+            try: os.unlink(ctx_path)
+            except OSError: pass
     combined = (out or "") + "\n" + (err or "")
 
     steps: list[str] = []
