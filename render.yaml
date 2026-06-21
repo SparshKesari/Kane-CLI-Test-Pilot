@@ -3,37 +3,35 @@
 # Apply via Render → New → Blueprint, pointed at this repo. You'll be prompted
 # for the values marked `sync: false` (your secrets + the cross-service URLs).
 services:
-  # ── API (FastAPI + kane-cli, cloud-grid mode) ─────────────────────────────
+  # ── API (thin: dispatches the CI pipeline + relays live events) ───────────
+  # The heavy pipeline runs in GitHub Actions (.github/workflows/pipeline.yml),
+  # so this service only triggers runs and relays progress — it stays tiny and
+  # is comfortable on the free 512MB plan. kane-cli/gh/Chrome are NOT installed
+  # here; the LT/Anthropic creds live as GitHub Actions secrets, not here.
   - type: web
     name: kane-testpilot-api
     runtime: docker
-    plan: free               # $0; NOTE: spins down when idle → in-memory run
-                             # history is wiped and a long run can be killed.
-                             # Bump to `starter` if that matters.
+    plan: free
     dockerfilePath: ./backend/Dockerfile
     dockerContext: .
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
-      - key: KANE_CLOUD       # browser runs on LambdaTest grid — no Chrome here
-        value: "true"
       - key: DEMO_MODE
         value: "false"
-      - key: TEST_STYLE
-        value: as_is
-      - key: KANE_CONCURRENCY # free tier = 512MB RAM; each kane-cli is a node
-        value: "2"            # process, so keep this low. Raise on a bigger plan.
-      - key: WORKSPACE_DIR
-        value: /tmp/workspaces
+      - key: LOCAL_EXECUTION  # false → dispatch a GitHub Actions job per run
+        value: "false"
+      - key: RUNNER_REPO      # repo hosting .github/workflows/pipeline.yml
+        value: SparshKesari/Kane-CLI-Test-Pilot
+      - key: RUNNER_REF       # branch the workflow_dispatch runs on (must be default)
+        value: main
+      - key: PUBLIC_BASE_URL  # this API's own https URL (CI posts events here)
+        sync: false
+      - key: INGEST_SECRET    # shared with the GitHub Actions secret of the same name
+        sync: false
+      - key: GITHUB_TOKEN     # PAT with `actions:write` + `workflow` to dispatch
+        sync: false
       - key: FRONTEND_ORIGIN  # https URL of the web service (for CORS)
-        sync: false
-      - key: GITHUB_TOKEN     # PAT with `repo` + `workflow` scope
-        sync: false
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: LT_USERNAME
-        sync: false
-      - key: LT_ACCESS_KEY
         sync: false
 
   # ── Web (Next.js) ─────────────────────────────────────────────────────────

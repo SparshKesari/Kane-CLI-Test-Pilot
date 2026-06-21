@@ -54,6 +54,18 @@ class Settings(BaseSettings):
     kane_cloud: bool = False
     kane_platform: str = "Windows 10"
 
+    # ── Execution mode ──────────────────────────────────────────────────────
+    # local_execution=True  → run the pipeline in-process (local dev; default).
+    # local_execution=False → the API only DISPATCHES a GitHub Actions job that
+    #   runs the pipeline (P1-P8) with real resources, and streams events back to
+    #   /api/runs/{id}/ingest. Keeps the hosted API tiny. See app/ci_runner.py.
+    local_execution: bool = True
+    runner_repo: str = ""              # "owner/repo" hosting pipeline.yml
+    runner_ref: str = "main"           # branch the workflow_dispatch runs on
+    runner_workflow: str = "pipeline.yml"
+    public_base_url: str = ""          # this API's public URL — the CI callback target
+    ingest_secret: str = ""            # shared secret authorizing CI → /ingest + /control
+
 
 @lru_cache
 def get_settings() -> Settings:
