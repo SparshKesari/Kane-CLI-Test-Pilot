@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     lt_username: str = ""
     lt_access_key: str = ""
     anthropic_api_key: str = ""
-    agent_model: str = "claude-opus-4-8"
+    agent_model: str = "claude-sonnet-4-6"
 
     workspace_dir: str = "./.workspaces"
     frontend_origin: str = "http://localhost:3000"
