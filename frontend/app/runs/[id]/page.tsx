@@ -202,12 +202,22 @@ export default function RunPage({ params }: { params: { id: string } }) {
             <div className="card p-5">
               <h3 className="font-serif text-base mb-3">Existing tests</h3>
               <ul className="space-y-2">
-                {run.existing_tests.map((t, i) => (
-                  <li key={i} className="text-sm">
-                    <div className="font-mono text-xs text-clay">{t.name}</div>
-                    <div className="text-xs text-muted">{t.file} · {t.framework}</div>
-                  </li>
-                ))}
+                {run.existing_tests.map((t, i) => {
+                  // Kane exports `async def test`, so the function name is a
+                  // useless "test" — fall back to the scenario directory name.
+                  const dir = t.file.split("/").slice(-2, -1)[0] || "";
+                  const label = t.name && t.name !== "test"
+                    ? t.name
+                    : (dir ? dir.replace(/[_-]+/g, " ") : t.name);
+                  return (
+                    <li key={i} className="text-sm min-w-0">
+                      <div className="truncate" title={label}>{label}</div>
+                      <div className="text-xs text-muted font-mono truncate" title={t.file}>
+                        {t.file} · {t.framework}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
