@@ -17,8 +17,8 @@ app = FastAPI(title="KaneCLI TestPilot")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontend_origin, "http://localhost:3000"],
-    # Allow any Render-hosted frontend so the exact URL needn't be hardcoded.
-    allow_origin_regex=r"https://.*\.onrender\.com",
+    # Allow any Render- or Vercel-hosted frontend so the exact URL needn't be hardcoded.
+    allow_origin_regex=r"https://.*\.(onrender\.com|vercel\.app)",
     allow_methods=["*"], allow_headers=["*"],
 )
 
