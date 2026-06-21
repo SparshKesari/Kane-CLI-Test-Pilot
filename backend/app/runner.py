@@ -197,7 +197,7 @@ async def execute_run(run: Run) -> None:
 # DEMO path — simulated but realistic, streams every loop iteration.
 # --------------------------------------------------------------------------- #
 async def _run_demo(run: Run) -> None:
-    run.branch = f"test/e2e-tests-{run.id.split('_')[-1][:6]}"
+    run.branch = f"test/e2e-tests-{run.id.split('_')[-1]}"
 
     await _start_phase(run, "P1", "Forking & cloning…")
     await asyncio.sleep(1.0)
@@ -471,7 +471,7 @@ async def _run_live(run: Run) -> None:
 
     settings = get_settings()
     want_vanilla = settings.test_style == "vanilla" and bool(settings.anthropic_api_key)
-    run.branch = f"test/e2e-tests-{run.id.split('_')[-1][:6]}"
+    run.branch = f"test/e2e-tests-{run.id.split('_')[-1]}"
 
     await _start_phase(run, "P1", "Forking & cloning…")
     fork_url, local = await asyncio.to_thread(

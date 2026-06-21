@@ -18,11 +18,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
+import sys
 
 import httpx
 
 from .events import bus
-from .models import RUNS, Run
+from .models import RUNS, Run, RunStatus
 from . import runner as run_mod
 
 
@@ -146,6 +147,12 @@ async def main() -> None:
         await fwd
         ctl.cancel()
         bus.unsubscribe(run.id, q)
+
+    # Make the GitHub Actions job reflect the real outcome — a run that errored
+    # must not show up as a green workflow.
+    if run.status == RunStatus.error:
+        print(f"[ci_runner] run ended with status=error", flush=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
