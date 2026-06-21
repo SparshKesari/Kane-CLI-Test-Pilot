@@ -225,6 +225,10 @@ export default function RunPage({ params }: { params: { id: string } }) {
                     <div className="flex items-center gap-2 mb-2">
                       <span className="font-mono text-xs text-muted">{t.scenario_id}</span>
                       <span className="text-sm font-medium">{t.title}</span>
+                      {t.kane_test_url && (
+                        <a href={t.kane_test_url} target="_blank" rel="noreferrer"
+                           className="text-xs text-clay hover:underline">session ↗</a>
+                      )}
                       <span className="ml-auto"><Badge value="pass" /></span>
                     </div>
                     {t.repair_iterations > 0 && (
@@ -261,6 +265,12 @@ export default function RunPage({ params }: { params: { id: string } }) {
                       <div className="text-xs text-clay/80 mt-1.5">
                         {t.status === "failed" ? "Failed: " : "Why: "}{t.reason}
                       </div>
+                    )}
+                    {t.kane_test_url && (
+                      <a href={t.kane_test_url} target="_blank" rel="noreferrer"
+                         className="inline-block text-xs text-clay hover:underline mt-1.5">
+                        View Kane session ↗
+                      </a>
                     )}
                   </div>
                 ))}

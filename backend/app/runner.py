@@ -365,6 +365,10 @@ async def _verify_scenario(run: Run, sc: dict, art: TestArtifact, out_dir,
             await _emit(run, "loop", scenario=sc["id"], iteration=1, step="abort",
                         status="info", detail="Aborted by you")
             return
+        # Attach the Kane session to the artifact for EVERY outcome (pass, fail,
+        # discard) — so the UI can link to the session even when it didn't pass.
+        art.kane_session = kr.session_id
+        art.kane_test_url = kr.test_url
         await _emit(run, "loop", scenario=sc["id"], iteration=1, step="kane_verify",
                     status="pass" if kr.ok else "fail", detail=kr.one_liner,
                     kane_session=kr.session_id, kane_test_url=kr.test_url, steps=kr.steps)
@@ -386,8 +390,6 @@ async def _verify_scenario(run: Run, sc: dict, art: TestArtifact, out_dir,
             await _emit(run, "loop", scenario=sc["id"], iteration=1, step="intent_gate",
                         status="fail", detail=intent_reason)
             return
-        art.kane_session = kr.session_id
-        art.kane_test_url = kr.test_url
 
         export = await asyncio.to_thread(kane_service.read_export, kr.code_dir)
         if want_vanilla:
