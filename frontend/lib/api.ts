@@ -28,7 +28,7 @@ export interface Candidate {
 }
 export interface Run {
   id: string; repo_url: string; target_url: string; status: string;
-  verdict: string; fork_url: string; branch: string; pr_url: string;
+  verdict: string; error?: string; fork_url: string; branch: string; pr_url: string;
   mode?: string; awaiting_selection?: boolean; candidates?: Candidate[];
   created_at: number; phases: Phase[]; existing_tests: ExistingTest[]; tests: TestArtifact[];
   metrics?: Metrics;

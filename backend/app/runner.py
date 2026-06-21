@@ -70,6 +70,33 @@ async def _emit(run: Run, type_: str, **payload):
     await bus.publish(run.id, type_, **payload)
 
 
+def _friendly_error(exc: Exception) -> str:
+    """Turn a raw exception (e.g. an Anthropic 400 JSON blob) into a clear,
+    actionable one-line message for the UI."""
+    msg = str(exc)
+    low = msg.lower()
+    # ── Anthropic / LLM ────────────────────────────────────────────────────
+    if "credit balance is too low" in low or "plans & billing" in low:
+        return ("Anthropic API credit balance is too low. Add credits in the "
+                "Anthropic Console (Plans & Billing), then start the run again.")
+    if "invalid x-api-key" in low or "authentication_error" in low or "permission_error" in low:
+        return "Anthropic API key is missing or invalid — check the ANTHROPIC_API_KEY setting."
+    if "rate_limit" in low or "rate limit" in low or "429" in low or "overloaded" in low:
+        return "Anthropic API is rate-limited or overloaded right now — wait a moment and retry."
+    # ── GitHub / git ───────────────────────────────────────────────────────
+    if "could not resolve to a repository" in low or "repository not found" in low:
+        return "GitHub repository not found — check the repo URL and that the token can access it."
+    if "clone" in low and ("failed" in low or "timed out" in low):
+        return "Couldn't clone the repository — check the URL and that it's accessible."
+    if "push" in low and ("denied" in low or "403" in low or "authentication" in low or "non-zero" in low):
+        return "Couldn't push to the fork — the GitHub token needs `repo` + `workflow` scope."
+    # ── Network ────────────────────────────────────────────────────────────
+    if "timed out" in low or "timeout" in low or "connection" in low or "getaddrinfo" in low:
+        return f"Network error reaching an external service — {msg.splitlines()[0][:140]}"
+    # ── Fallback: first line, trimmed ──────────────────────────────────────
+    return msg.splitlines()[0][:200] if msg else "Unexpected error."
+
+
 # --------------------------------------------------------------------------- #
 # Human-in-the-loop: the run pauses after the gate and waits for the user to
 # pick which proposed scenarios Kane should verify. The API delivers the choice
@@ -186,7 +213,8 @@ async def execute_run(run: Run) -> None:
         await _emit(run, "log", phase="P6", message="Run aborted by you.")
     except Exception as exc:  # noqa: BLE001
         run.status = RunStatus.error
-        await _emit(run, "error", message=str(exc))
+        run.error = _friendly_error(exc)
+        await _emit(run, "error", message=run.error)
     finally:
         _CANCELLED.discard(run.id)
     await _emit(run, "run", status=run.status.value, verdict=run.verdict,

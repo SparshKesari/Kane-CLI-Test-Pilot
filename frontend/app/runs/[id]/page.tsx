@@ -121,6 +121,19 @@ export default function RunPage({ params }: { params: { id: string } }) {
 
       <StatusPanel run={run} phases={phases} events={events} />
 
+      {run.status === "error" && (
+        <div className="card p-4 border-bad/40 bg-bad/5">
+          <div className="flex items-center gap-2 text-sm font-medium text-bad">
+            <span>⚠</span> Run failed
+          </div>
+          <p className="text-sm text-ink/80 mt-1.5">
+            {run.error
+              || events.filter((e) => e.type === "error").slice(-1)[0]?.message
+              || "Something went wrong during the run."}
+          </p>
+        </div>
+      )}
+
       {run.pr_url && (
         <a href={run.pr_url} target="_blank" rel="noreferrer"
            className="card px-4 py-3 flex items-center gap-2 border-clay-soft bg-clay-wash/40">

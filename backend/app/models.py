@@ -83,6 +83,7 @@ class Run:
     candidates: list = field(default_factory=list)   # proposed scenarios shown for selection
     status: RunStatus = RunStatus.queued
     verdict: str = ""
+    error: str = ""          # human-readable failure message when status == error
     fork_url: str = ""
     branch: str = ""
     pr_url: str = ""
@@ -106,6 +107,7 @@ class Run:
             "candidates": self.candidates,
             "status": self.status.value,
             "verdict": self.verdict,
+            "error": self.error,
             "fork_url": self.fork_url,
             "branch": self.branch,
             "pr_url": self.pr_url,
