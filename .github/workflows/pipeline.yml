@@ -48,6 +48,12 @@ jobs:
           LT_ACCESS_KEY: ${{ secrets.LT_ACCESS_KEY }}
           INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
         run: |
+          # Authenticate git pushes to the target fork with the PAT (the runner
+          # has no credential helper for repos other than the checked-out one).
+          git config --global credential.helper \
+            '!f() { echo username=x-access-token; echo "password=$GITHUB_TOKEN"; }; f'
+          git config --global user.name  "Kane TestPilot"
+          git config --global user.email "testpilot@users.noreply.github.com"
           python -m app.ci_runner \
             --run-id "${{ inputs.run_id }}" \
             --repo-url "${{ inputs.repo_url }}" \
