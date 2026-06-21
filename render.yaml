@@ -1,5 +1,6 @@
 # Render Blueprint — KaneCLI TestPilot
-# Two services: a Dockerized FastAPI API and a Next.js web frontend.
+# Renders only the API (thin trigger + relay). The Next.js frontend is hosted on
+# Vercel (kane-cli-test-pilot.vercel.app) for instant, cold-start-free loads.
 # Apply via Render → New → Blueprint, pointed at this repo. You'll be prompted
 # for the values marked `sync: false` (your secrets + the cross-service URLs).
 services:
@@ -31,19 +32,8 @@ services:
         sync: false
       - key: GITHUB_TOKEN     # PAT with `actions:write` + `workflow` to dispatch
         sync: false
-      - key: FRONTEND_ORIGIN  # https URL of the web service (for CORS)
+      - key: FRONTEND_ORIGIN  # https URL of the Vercel frontend (for CORS)
         sync: false
 
-  # ── Web (Next.js) ─────────────────────────────────────────────────────────
-  - type: web
-    name: kane-testpilot-web
-    runtime: node
-    plan: free               # $0; stateless — only downside is a cold start on idle
-    buildCommand: cd frontend && npm install --no-audit --no-fund && npm run build
-    startCommand: cd frontend && npm start -- -p $PORT
-    autoDeploy: true
-    envVars:
-      - key: NODE_VERSION
-        value: "20"
-      - key: NEXT_PUBLIC_API  # https URL of the API service, baked in at build
-        sync: false
+# Frontend is on Vercel (root dir: frontend/, env NEXT_PUBLIC_API → the API URL),
+# not Render — see DEPLOY.md.

@@ -9,7 +9,7 @@ free unlimited minutes on a public repo. The hosted services are thin:
 | Service | Role | Hosting |
 |---|---|---|
 | `kane-testpilot-api` (Docker, Python) | **Dispatches** a CI job per run and **relays** its events to the browser. Tiny RAM. | Render **free** |
-| `kane-testpilot-web` (Next.js) | The UI | Render **free** |
+| Frontend (Next.js) | The UI | **Vercel** (instant, no cold start) |
 | GitHub Actions job | Runs the actual P1–P8 pipeline; streams events back to the API | GitHub (free) |
 
 ```
@@ -33,29 +33,30 @@ Repo → **Settings → Secrets and variables → Actions → New repository sec
 > `pipeline.yml` must be on the **default branch** (`main`) for `workflow_dispatch`
 > to be callable. Merge this branch (or push the workflow to `main`) before runs work.
 
-## 2. Deploy on Render (Blueprint)
+## 2. Deploy the API on Render (Blueprint)
 Render → **New → Blueprint** → pick the repo. It reads `render.yaml` and creates
-both services (both **free**). Fill the prompted `sync: false` values:
+the **`kane-testpilot-api`** service (free). Fill the prompted `sync: false` values:
 
-**`kane-testpilot-api`**
 | Key | Value |
 |---|---|
-| `GITHUB_TOKEN` | a PAT with `actions:write` + `workflow` (to dispatch the job) |
+| `GITHUB_TOKEN` | a PAT with `repo` + `workflow` (to dispatch the job) |
 | `INGEST_SECRET` | the **same** random string as the GitHub secret above |
 | `PUBLIC_BASE_URL` | this API's own URL, e.g. `https://kane-testpilot-api.onrender.com` |
-| `FRONTEND_ORIGIN` | the web URL, e.g. `https://kane-testpilot-web.onrender.com` |
+| `FRONTEND_ORIGIN` | the Vercel URL, e.g. `https://kane-cli-test-pilot.vercel.app` |
 
 (`RUNNER_REPO`, `RUNNER_REF`, `LOCAL_EXECUTION=false`, `DEMO_MODE=false` are preset in `render.yaml`.)
 
-**`kane-testpilot-web`**
-| Key | Value |
-|---|---|
-| `NEXT_PUBLIC_API` | the API URL, e.g. `https://kane-testpilot-api.onrender.com` |
+## 3. Deploy the frontend on Vercel
+Vercel → **Add New → Project** → import the repo, then:
+- **Root Directory:** `frontend`
+- **Framework:** Next.js (auto-detected)
+- **Env var:** `NEXT_PUBLIC_API` = the API URL (e.g. `https://kane-testpilot-api.onrender.com`)
+- Deploy → you get a `…vercel.app` URL (the API's CORS already allows `*.vercel.app`).
 
-> If Render appends a suffix to a service name, copy the real URLs from the
-> dashboard, update `PUBLIC_BASE_URL` / `FRONTEND_ORIGIN` / `NEXT_PUBLIC_API`,
-> and redeploy the **web** service with **Clear build cache** (NEXT_PUBLIC_* is
-> baked at build time).
+> `NEXT_PUBLIC_API` is baked at build time — if you change it, redeploy the Vercel
+> project. The API host is interchangeable (it's a plain Docker image); to move it,
+> update `PUBLIC_BASE_URL` (on the API), `NEXT_PUBLIC_API` (Vercel), and the CORS
+> regex in `main.py` if the new host isn't `*.onrender.com` / `*.vercel.app`.
 
 ## 3. Verify
 1. API health: `https://<api>.onrender.com/api/health` → `{"ok":true,"demo_mode":false,"local_execution":false}`
