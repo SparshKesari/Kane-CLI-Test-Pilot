@@ -37,29 +37,50 @@ def _args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def _log_event(ev: dict) -> None:
+    """Mirror an event to stdout so the GitHub Actions log shows live progress
+    even if the relay API is unreachable."""
+    t = ev.get("type", "log")
+    bits = [b for b in (
+        ev.get("key"), ev.get("phase"), ev.get("scenario"), ev.get("step"),
+        ev.get("status"), ev.get("message"), ev.get("detail"), ev.get("error"),
+    ) if b]
+    print(f"[{t}] " + " · ".join(str(b) for b in bits)[:200], flush=True)
+
+
 async def _forwarder(run: Run, q: asyncio.Queue, base: str, secret: str,
                      stop: asyncio.Event) -> None:
-    """Batch bus events and POST them (plus the current run snapshot) to /ingest.
-    Retries with backoff so a cold-starting / briefly-down API loses no events."""
+    """Drain the bus: mirror every event to stdout and POST it (+ run snapshot)
+    to /ingest. A short retry covers a cold-starting API; after repeated failures
+    the relay is marked dead so a down API never stalls the pipeline itself."""
     ingest = f"{base}/api/runs/{run.id}/ingest"
     headers = {"Authorization": f"Bearer {secret}"}
+    relay = {"dead": False, "fails": 0}
 
-    async with httpx.AsyncClient(timeout=20) as client:
+    async with httpx.AsyncClient(timeout=15) as client:
         async def flush(events: list[dict]) -> None:
-            if not events:
+            if not events or relay["dead"]:
                 return
             payload = {"events": events, "run": run.to_dict()}
-            for attempt in range(6):
+            for attempt in range(3):
                 try:
                     await client.post(ingest, json=payload, headers=headers)
+                    relay["fails"] = 0
                     return
                 except Exception:  # noqa: BLE001
-                    await asyncio.sleep(min(8, 1.0 * (attempt + 1)))
+                    await asyncio.sleep(1.0 * (attempt + 1))
+            relay["fails"] += 1
+            if relay["fails"] >= 2:
+                relay["dead"] = True
+                print("[relay] callback API unreachable — continuing without live "
+                      "relay (pipeline still runs; PR will still open).", flush=True)
 
         batch: list[dict] = []
         while not (stop.is_set() and q.empty()):
             try:
-                batch.append(await asyncio.wait_for(q.get(), timeout=0.25))
+                ev = await asyncio.wait_for(q.get(), timeout=0.25)
+                _log_event(ev)
+                batch.append(ev)
                 if len(batch) < 25:
                     continue
             except asyncio.TimeoutError:
